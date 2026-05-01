@@ -7,9 +7,10 @@ import Link from "next/link";
 interface Props {
   provider: any;
   session: { userId: string; userType: string } | null;
+  isFullToday?: boolean;
 }
 
-export default function BookingForm({ provider, session }: Props) {
+export default function BookingForm({ provider, session, isFullToday }: Props) {
   const router = useRouter();
   const [form, setForm] = useState({
     serviceId: provider.services[0]?.id?.toString() ?? "",
@@ -36,9 +37,19 @@ export default function BookingForm({ provider, session }: Props) {
     );
   }
 
+  if (!provider.isAvailable) {
+    return (
+      <div className="bg-white rounded-xl border p-6 sticky top-24">
+        <p className="font-bold text-gray-900 mb-2">Book this Professional</p>
+        <p className="text-gray-500 text-sm">This provider is currently not taking new bookings.</p>
+      </div>
+    );
+  }
+
   if (!provider.isVerified) {
     return (
       <div className="bg-white rounded-xl border p-6 sticky top-24">
+        <p className="font-bold text-gray-900 mb-2">Book this Professional</p>
         <p className="text-gray-500 text-sm">This provider is not yet verified. Bookings will be available once verified.</p>
       </div>
     );
@@ -75,6 +86,11 @@ export default function BookingForm({ provider, session }: Props) {
     <div className="bg-white rounded-xl border p-6 sticky top-24">
       <h2 className="font-bold text-gray-900 text-lg mb-4">Book this Professional</h2>
 
+      {isFullToday && (
+        <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 text-sm rounded-lg px-3 py-2 mb-4">
+          This provider is fully booked today. You can still book for another day.
+        </div>
+      )}
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2 mb-4">
           {error}

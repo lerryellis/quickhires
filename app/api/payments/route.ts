@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createNotification } from "@/lib/notifications";
-import { calculatePayout, COMMISSION_RATE } from "@/lib/taxes";
+import { COMMISSION_RATE, TOTAL_TAX_RATE } from "@/lib/taxes";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
       service: true,
       provider: { include: { user: { select: { id: true, fullName: true } } } },
       user: { select: { id: true, fullName: true } },
+      payment: true,
     },
   });
 
@@ -29,73 +30,96 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Booking must be completed before payment" }, { status: 400 });
   }
 
-  const serviceAmount = Number(booking.service.price);
-  const payout = calculatePayout(serviceAmount, paymentMethod);
+  // Ghana tax math:
+  // basePrice = service price before tax
+  // taxedAmount (what customer pays) = basePrice * 1.20
+  // commissionAmount = basePrice * 0.10
+  // payoutAmount = basePrice - commissionAmount = basePrice * 0.90
+  const basePrice = Number(booking.service.price);
+  const taxedAmount = parseFloat((basePrice * (1 + TOTAL_TAX_RATE)).toFixed(2));
+  const commissionAmount = parseFloat((basePrice * COMMISSION_RATE).toFixed(2));
+  const taxAmount = parseFloat((basePrice * TOTAL_TAX_RATE).toFixed(2));
+  const payoutAmount = parseFloat((basePrice - commissionAmount).toFixed(2));
 
-  const payment = await prisma.payment.create({
-    data: {
-      bookingId: booking.id,
-      amount: serviceAmount,
-      paymentMethod: paymentMethod as any,
-      paymentStatus: "completed",
-    },
-  });
+  let payment;
+  if (booking.payment) {
+    payment = await prisma.payment.update({
+      where: { id: booking.payment.id },
+      data: {
+        amount: taxedAmount,
+        paymentMethod: paymentMethod as any,
+        paymentStatus: "completed",
+        paymentDate: new Date(),
+        mobileNetwork: mobileNetwork ?? null,
+        mobilePhone: mobilePhone ?? null,
+      },
+    });
+  } else {
+    payment = await prisma.payment.create({
+      data: {
+        bookingId: booking.id,
+        amount: taxedAmount,
+        paymentMethod: paymentMethod as any,
+        paymentStatus: "completed",
+        paymentDate: new Date(),
+        mobileNetwork: mobileNetwork ?? null,
+        mobilePhone: mobilePhone ?? null,
+      },
+    });
+  }
 
-  // For cash: provider owes commission separately
   if (paymentMethod === "cash") {
-    const commission = serviceAmount * COMMISSION_RATE;
     await prisma.providerCommission.upsert({
       where: { bookingId: booking.id },
       update: {},
       create: {
         bookingId: booking.id,
         providerId: booking.providerId,
-        amount: commission,
+        amount: commissionAmount,
         status: "owed",
       },
     });
     await createNotification(
-      booking.provider.userId,
+      booking.provider.user.id,
       "commission",
       "Commission Due",
-      `A 10% platform commission of GH₵ ${commission.toFixed(2)} is due for cash booking #${booking.id}. Pay from your dashboard.`,
+      `A 10% platform commission of GH₵ ${commissionAmount.toFixed(2)} is due for cash booking #${booking.id}. Pay from your dashboard.`,
       "/dashboard"
     );
   } else {
-    // For card/momo: release payout automatically
-    const ref = `PAYOUT-${Math.random().toString(16).slice(2, 10).toUpperCase()}`;
+    const ref = `PAYOUT-${Date.now().toString(16).toUpperCase()}`;
     await prisma.providerPayout.upsert({
       where: { bookingId: booking.id },
       update: {},
       create: {
         bookingId: booking.id,
         providerId: booking.providerId,
-        grossAmount: payout.grossAmount,
-        commissionAmount: payout.commissionAmount,
-        taxAmount: payout.taxAmount,
-        payoutAmount: payout.payoutAmount,
-        paymentMethod: paymentMethod,
+        grossAmount: taxedAmount,
+        commissionAmount,
+        taxAmount,
+        payoutAmount,
+        paymentMethod,
         payoutReference: ref,
         status: "released",
         releasedAt: new Date(),
       },
     });
     await createNotification(
-      booking.provider.userId,
+      booking.provider.user.id,
       "payment",
       "Payout Released",
-      `Payout of GH₵ ${payout.payoutAmount.toFixed(2)} released for booking #${booking.id}. Platform commission GH₵ ${payout.commissionAmount.toFixed(2)} was deducted automatically.`,
+      `Payout of GH₵ ${payoutAmount.toFixed(2)} released for booking #${booking.id}. Commission GH₵ ${commissionAmount.toFixed(2)} deducted.`,
       "/dashboard"
     );
   }
 
   await createNotification(
-    booking.provider.userId,
+    booking.user.id,
     "payment",
-    "Payment Received",
-    `You received GH₵ ${serviceAmount.toFixed(2)} for booking #${booking.id}.`,
-    "/dashboard"
+    "Payment Confirmed",
+    `Your payment of GH₵ ${taxedAmount.toFixed(2)} for booking #${booking.id} was received.`,
+    `/receipt/${booking.id}`
   );
 
-  return NextResponse.json({ payment, payout });
+  return NextResponse.json(JSON.parse(JSON.stringify({ payment, basePrice, taxedAmount, commissionAmount, taxAmount, payoutAmount })));
 }

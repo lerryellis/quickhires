@@ -9,11 +9,11 @@ export default async function AdminPage() {
 
   let data: any = {
     users: [], bookings: [], payments: [], providers: [],
-    verifications: [], feedback: [], totalRevenue: 0,
+    verifications: [], feedback: [], totalRevenue: 0, categories: [],
   };
 
   try {
-    const [users, bookings, payments, providers, verifications, feedback] = await Promise.all([
+    const [users, bookings, payments, providers, verifications, feedback, categories] = await Promise.all([
       prisma.user.findMany({ orderBy: { createdAt: "desc" } }),
       prisma.booking.findMany({
         include: {
@@ -36,13 +36,14 @@ export default async function AdminPage() {
         include: { user: { select: { fullName: true } } },
         orderBy: { createdAt: "desc" },
       }),
+      prisma.homepageCategory.findMany({ orderBy: { displayOrder: "asc" } }),
     ]);
 
     const totalRevenue = payments
       .filter((p) => p.paymentStatus === "completed")
       .reduce((s, p) => s + Number(p.amount) * 0.1, 0);
 
-    data = JSON.parse(JSON.stringify({ users, bookings, payments, providers, verifications, feedback, totalRevenue }));
+    data = JSON.parse(JSON.stringify({ users, bookings, payments, providers, verifications, feedback, totalRevenue, categories }));
   } catch {
     // DB not connected
   }

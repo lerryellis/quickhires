@@ -24,6 +24,10 @@ export default async function ProviderPage({ params }: Props) {
           orderBy: { createdAt: "desc" },
           take: 10,
         },
+        bookings: {
+          where: { status: { not: "cancelled" } },
+          select: { id: true, bookingDate: true, status: true },
+        },
       },
     });
   } catch {
@@ -32,7 +36,6 @@ export default async function ProviderPage({ params }: Props) {
 
   if (!provider) notFound();
 
-  // Serialize Decimal fields so they can be passed to Client Components
   const serializedProvider = JSON.parse(JSON.stringify(provider));
 
   const initials = provider.user.fullName
@@ -44,6 +47,25 @@ export default async function ProviderPage({ params }: Props) {
   const avgRating = provider.reviews.length
     ? provider.reviews.reduce((s: number, r: any) => s + (r.rating ?? 0), 0) / provider.reviews.length
     : 0;
+
+  // Satisfaction rate: 60% positive reviews + 40% normalised avg rating
+  const positiveReviews = provider.reviews.filter((r: any) => (r.rating ?? 0) >= 4).length;
+  const positiveRate = provider.reviews.length ? positiveReviews / provider.reviews.length : 0;
+  const satisfactionRate = provider.reviews.length
+    ? Math.round(positiveRate * 60 + (avgRating / 5) * 40)
+    : null;
+
+  // Job count (all non-cancelled)
+  const jobCount = provider.bookings.length;
+
+  // Today's bookings vs daily cap
+  const today = new Date().toISOString().slice(0, 10);
+  const todayBookings = provider.bookings.filter((b: any) => {
+    const bDate = new Date(b.bookingDate).toISOString().slice(0, 10);
+    return bDate === today;
+  }).length;
+  const cap = provider.dailyBookingCap ?? 0;
+  const isFullToday = cap > 0 && todayBookings >= cap;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -74,15 +96,25 @@ export default async function ProviderPage({ params }: Props) {
                   {provider.isFeatured && (
                     <span className="bg-yellow-100 text-yellow-700 text-xs font-semibold px-2 py-1 rounded-full">★ Featured</span>
                   )}
+                  {!provider.isAvailable && (
+                    <span className="bg-gray-100 text-gray-500 text-xs font-semibold px-2 py-1 rounded-full">Unavailable</span>
+                  )}
+                  {isFullToday && (
+                    <span className="bg-red-100 text-red-600 text-xs font-semibold px-2 py-1 rounded-full">Fully Booked Today</span>
+                  )}
                 </div>
                 <p className="text-gray-500 mt-1">{provider.serviceCategory}</p>
-                <div className="flex items-center gap-4 mt-3 text-sm text-gray-500">
+                <div className="flex items-center gap-4 mt-3 text-sm text-gray-500 flex-wrap">
                   <span className="flex items-center gap-1">
                     <span className="text-yellow-500">★</span>
                     <span className="font-medium text-gray-900">{avgRating.toFixed(1)}</span>
                     <span>({provider.reviews.length} reviews)</span>
                   </span>
-                  <span>· {provider.experienceYears} yrs experience</span>
+                  <span>· {jobCount} jobs</span>
+                  {satisfactionRate !== null && (
+                    <span>· {satisfactionRate}% satisfaction</span>
+                  )}
+                  <span>· {provider.experienceYears} yrs exp</span>
                   <span>· Speaks {provider.languages}</span>
                 </div>
               </div>
@@ -99,6 +131,18 @@ export default async function ProviderPage({ params }: Props) {
                 <p className="text-gray-500">Response time</p>
                 <p className="font-medium text-gray-900 mt-1">{provider.avgResponse}</p>
               </div>
+              {cap > 0 && (
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-gray-500">Today's bookings</p>
+                  <p className={`font-medium mt-1 ${isFullToday ? "text-red-600" : "text-green-600"}`}>
+                    {todayBookings} / {cap} {isFullToday ? "(full)" : "slots available"}
+                  </p>
+                </div>
+              )}
+              <div className="bg-gray-50 rounded-lg p-3">
+                <p className="text-gray-500">Jobs completed</p>
+                <p className="font-medium text-gray-900 mt-1">{jobCount}</p>
+              </div>
             </div>
           </div>
 
@@ -112,6 +156,7 @@ export default async function ProviderPage({ params }: Props) {
                     <div>
                       <p className="font-medium text-gray-900">{s.serviceName}</p>
                       {s.description && <p className="text-gray-500 text-sm mt-1">{s.description}</p>}
+                      {s.duration && <p className="text-gray-400 text-xs mt-1">{s.duration} min</p>}
                     </div>
                     <span className="text-blue-600 font-semibold ml-4">GH₵ {Number(s.price).toFixed(0)}</span>
                   </div>
@@ -123,7 +168,12 @@ export default async function ProviderPage({ params }: Props) {
           {/* Reviews */}
           {provider.reviews.length > 0 && (
             <div className="bg-white rounded-xl border p-6">
-              <h2 className="text-lg font-bold text-gray-900 mb-4">Reviews</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-gray-900">Reviews</h2>
+                {satisfactionRate !== null && (
+                  <span className="text-sm text-gray-500">{satisfactionRate}% satisfaction rate</span>
+                )}
+              </div>
               <div className="space-y-4">
                 {provider.reviews.map((r: any) => (
                   <div key={r.id} className="border-b pb-4 last:border-0">
@@ -144,7 +194,18 @@ export default async function ProviderPage({ params }: Props) {
           <BookingForm
             provider={serializedProvider}
             session={session ? { userId: session.user.id, userType: (session.user as any).userType } : null}
+            isFullToday={isFullToday}
           />
+          {session && (
+            <div className="mt-4">
+              <Link
+                href={`/messages?with=${provider.userId}`}
+                className="w-full block text-center border border-gray-300 text-gray-700 text-sm px-4 py-3 rounded-xl hover:bg-gray-50"
+              >
+                Send Message
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </div>
