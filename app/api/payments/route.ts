@@ -26,8 +26,19 @@ export async function POST(req: NextRequest) {
   });
 
   if (!booking) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+
+  const userId = parseInt(session.user.id);
+  // Only the customer who made the booking can pay for it
+  if (booking.userId !== userId) {
+    return NextResponse.json({ error: "You are not authorized to make payment for this booking" }, { status: 403 });
+  }
+
   if (booking.status !== "completed") {
-    return NextResponse.json({ error: "Booking must be completed before payment" }, { status: 400 });
+    return NextResponse.json({ error: "Payment can only be made after the service is marked complete by the provider" }, { status: 400 });
+  }
+
+  if (booking.payment?.paymentStatus === "completed") {
+    return NextResponse.json({ error: "This booking has already been paid" }, { status: 409 });
   }
 
   // Ghana tax math:

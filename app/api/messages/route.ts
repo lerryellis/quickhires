@@ -61,6 +61,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
+  if (parseInt(receiverId) === senderId) {
+    return NextResponse.json({ error: "You cannot send a message to yourself" }, { status: 400 });
+  }
+
   const sender = await prisma.user.findUnique({
     where: { id: senderId },
     select: { fullName: true },

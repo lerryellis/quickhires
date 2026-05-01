@@ -92,29 +92,51 @@ export async function POST(req: NextRequest) {
 
     // ── Featured ──────────────────────────────────────────────────────────────
     case "approve_featured": {
-      const fr = await prisma.featuredRequest.findUnique({ where: { id: parseInt(targetId) } });
+      const fr = await prisma.featuredRequest.findUnique({
+        where: { id: parseInt(targetId) },
+        include: { provider: true },
+      });
       if (!fr) return NextResponse.json({ error: "Not found" }, { status: 404 });
+      if (fr.paymentStatus !== "completed") {
+        return NextResponse.json({ error: "Cannot approve — payment not completed." }, { status: 400 });
+      }
       const expires = new Date();
       expires.setDate(expires.getDate() + (fr.durationDays ?? 30));
       await prisma.featuredRequest.update({
         where: { id: parseInt(targetId) },
-        data: { requestStatus: "approved", paymentStatus: "completed", approvedAt: new Date(), expiresAt: expires },
+        data: { requestStatus: "approved", approvedAt: new Date(), expiresAt: expires },
       });
       await prisma.serviceProvider.update({ where: { id: fr.providerId }, data: { isFeatured: true } });
-      await createNotification(fr.providerId, "featured", "Featured Listing Approved",
+      await createNotification(fr.provider.userId, "featured", "Featured Listing Approved",
         `Your featured listing is now active for ${fr.durationDays} days.`, "/dashboard");
       return NextResponse.json({ success: true });
     }
 
     case "reject_featured": {
+      const fr2 = await prisma.featuredRequest.findUnique({
+        where: { id: parseInt(targetId) },
+        include: { provider: true },
+      });
       await prisma.featuredRequest.update({
         where: { id: parseInt(targetId) },
         data: { requestStatus: "rejected" },
       });
+      if (fr2) {
+        await createNotification(fr2.provider.userId, "featured", "Featured Request Rejected",
+          "Your featured listing request was not approved. Please contact support.", "/dashboard");
+      }
       return NextResponse.json({ success: true });
     }
 
     // ── Feedback ──────────────────────────────────────────────────────────────
+    case "mark_feedback_read": {
+      await prisma.platformFeedback.update({
+        where: { id: parseInt(targetId) },
+        data: { isRead: true },
+      });
+      return NextResponse.json({ success: true });
+    }
+
     case "reply_feedback": {
       await prisma.platformFeedback.update({
         where: { id: parseInt(targetId) },
@@ -190,6 +212,10 @@ export async function POST(req: NextRequest) {
           bio: data?.bio ?? undefined,
           isAvailable: data?.isAvailable ?? undefined,
           dailyBookingCap: data?.dailyBookingCap != null ? parseInt(data.dailyBookingCap) : undefined,
+          experienceYears: data?.experienceYears != null ? parseInt(data.experienceYears) : undefined,
+          availability: data?.availability ?? undefined,
+          languages: data?.languages ?? undefined,
+          avgResponse: data?.avgResponse ?? undefined,
         },
       });
       return NextResponse.json(JSON.parse(JSON.stringify(updated)));

@@ -59,6 +59,10 @@ export async function POST(req: NextRequest) {
   const sid = parseInt(serviceId);
   const date = new Date(bookingDate);
 
+  if (isNaN(date.getTime()) || date < new Date()) {
+    return NextResponse.json({ error: "Booking date must be in the future" }, { status: 400 });
+  }
+
   const [provider, service] = await Promise.all([
     prisma.serviceProvider.findUnique({ where: { id: pid } }),
     prisma.service.findUnique({ where: { id: sid } }),
@@ -66,6 +70,14 @@ export async function POST(req: NextRequest) {
 
   if (!provider) return NextResponse.json({ error: "Provider not found" }, { status: 404 });
   if (!service) return NextResponse.json({ error: "Service not found" }, { status: 404 });
+
+  if (provider.userId === userId) {
+    return NextResponse.json({ error: "You cannot book your own services" }, { status: 400 });
+  }
+
+  if (!provider.isAvailable) {
+    return NextResponse.json({ error: "This provider is not currently accepting bookings" }, { status: 400 });
+  }
 
   // Daily cap check
   const cap = provider.dailyBookingCap ?? 0;

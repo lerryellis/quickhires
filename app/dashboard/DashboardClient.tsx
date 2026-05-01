@@ -28,6 +28,7 @@ export default function DashboardClient({
   const router = useRouter();
   const [tab, setTab] = useState("overview");
   const [loadingId, setLoadingId] = useState<number | null>(null);
+  const [bookingError, setBookingError] = useState<string | null>(null);
 
   const isProvider = userType === "provider" || userType === "both";
   const isCustomer = userType === "customer" || userType === "both";
@@ -47,13 +48,18 @@ export default function DashboardClient({
 
   async function updateBooking(bookingId: number, status: string) {
     setLoadingId(bookingId);
-    await fetch(`/api/bookings/${bookingId}`, {
+    setBookingError(null);
+    const res = await fetch(`/api/bookings/${bookingId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     });
+    if (!res.ok) {
+      const data = await res.json();
+      setBookingError(data.error ?? "Failed to update booking.");
+    }
     setLoadingId(null);
-    router.refresh();
+    if (res.ok) router.refresh();
   }
 
   async function markNotificationsRead() {
@@ -202,6 +208,11 @@ export default function DashboardClient({
         {/* Manage Bookings (provider) */}
         {tab === "manage_bookings" && (
           <div className="space-y-4">
+            {bookingError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
+                {bookingError}
+              </div>
+            )}
             {providerBookings.length === 0 ? (
               <p className="text-center py-16 text-gray-400">No bookings received yet.</p>
             ) : (
@@ -394,6 +405,7 @@ function ServicesTab({ providerId, services: initialServices }: { providerId: nu
   const [price, setPrice] = useState("");
   const [duration, setDuration] = useState("");
   const [loading, setLoading] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
   const [editDesc, setEditDesc] = useState("");
@@ -401,6 +413,7 @@ function ServicesTab({ providerId, services: initialServices }: { providerId: nu
 
   async function addService() {
     setLoading(true);
+    setAddError(null);
     const res = await fetch("/api/services", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -408,6 +421,7 @@ function ServicesTab({ providerId, services: initialServices }: { providerId: nu
     });
     const s = await res.json();
     if (res.ok) { setServices((p) => [s, ...p]); setName(""); setDesc(""); setPrice(""); setDuration(""); setAdding(false); }
+    else { setAddError(s.error ?? "Failed to add service."); }
     setLoading(false);
   }
 
@@ -447,6 +461,7 @@ function ServicesTab({ providerId, services: initialServices }: { providerId: nu
 
       {adding && (
         <div className="bg-white border rounded-xl p-5 space-y-3">
+          {addError && <p className="text-red-600 text-sm">{addError}</p>}
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Service name *" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
           <input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Description (optional)" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
           <div className="grid grid-cols-2 gap-3">
@@ -584,16 +599,22 @@ function CommissionsTab({ commissions }: { commissions: any[] }) {
   const router = useRouter();
   const [loading, setLoading] = useState<number | null>(null);
   const [refs, setRefs] = useState<Record<number, string>>({});
+  const [errors, setErrors] = useState<Record<number, string>>({});
 
   async function pay(id: number) {
     setLoading(id);
-    await fetch("/api/commissions/pay", {
+    setErrors((e) => ({ ...e, [id]: "" }));
+    const res = await fetch("/api/commissions/pay", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ commissionId: id, paymentReference: refs[id] ?? "" }),
     });
+    if (!res.ok) {
+      const data = await res.json();
+      setErrors((e) => ({ ...e, [id]: data.error ?? "Payment failed." }));
+    }
     setLoading(null);
-    router.refresh();
+    if (res.ok) router.refresh();
   }
 
   const total = commissions.reduce((s, c) => s + Number(c.amount), 0);
@@ -613,17 +634,20 @@ function CommissionsTab({ commissions }: { commissions: any[] }) {
               <p className="text-gray-400 text-xs">{new Date(c.createdAt).toLocaleDateString("en-GH", { timeZone: "Africa/Accra" })}</p>
             </div>
           </div>
-          <div className="mt-3 pt-3 border-t flex gap-2 items-center">
-            <input
-              value={refs[c.id] ?? ""}
-              onChange={(e) => setRefs((r) => ({ ...r, [c.id]: e.target.value }))}
-              placeholder="Payment reference (optional)"
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm flex-1"
-            />
-            <button onClick={() => pay(c.id)} disabled={loading === c.id}
-              className="bg-blue-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50">
-              {loading === c.id ? "Processing…" : "Mark as Paid"}
-            </button>
+          <div className="mt-3 pt-3 border-t space-y-2">
+            {errors[c.id] && <p className="text-red-600 text-sm">{errors[c.id]}</p>}
+            <div className="flex gap-2 items-center">
+              <input
+                value={refs[c.id] ?? ""}
+                onChange={(e) => setRefs((r) => ({ ...r, [c.id]: e.target.value }))}
+                placeholder="Payment reference (optional)"
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm flex-1"
+              />
+              <button type="button" onClick={() => pay(c.id)} disabled={loading === c.id}
+                className="bg-blue-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                {loading === c.id ? "Processing…" : "Mark as Paid"}
+              </button>
+            </div>
           </div>
         </div>
       ))}
@@ -744,7 +768,7 @@ function FeaturedTab({ provider }: { provider: any }) {
           <select value={days} onChange={(e) => setDays(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
             <option value="7">1 week — GH₵ 50</option>
             <option value="14">2 weeks — GH₵ 100</option>
-            <option value="30">30 days — GH₵ 200</option>
+            <option value="30">30 days — GH₵ 250</option>
             <option value="90">90 days — GH₵ 650</option>
           </select>
         </div>
@@ -777,21 +801,28 @@ function PaymentWidget({ bookingId }: { bookingId: number }) {
   const [network, setNetwork] = useState("");
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function pay() {
     setLoading(true);
-    await fetch("/api/payments", {
+    setError(null);
+    const res = await fetch("/api/payments", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ bookingId, paymentMethod: method, mobileNetwork: network, mobilePhone: phone }),
     });
+    if (!res.ok) {
+      const data = await res.json();
+      setError(data.error ?? "Payment failed. Please try again.");
+    }
     setLoading(false);
-    router.refresh();
+    if (res.ok) router.refresh();
   }
 
   return (
     <div className="space-y-2">
       <p className="text-sm font-medium text-gray-700">Make Payment</p>
+      {error && <p className="text-red-600 text-sm">{error}</p>}
       <div className="flex flex-wrap gap-2 items-center">
         <select value={method} onChange={(e) => setMethod(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-sm">
           <option value="mobile_money">Mobile Money</option>
@@ -824,21 +855,28 @@ function ReviewWidget({ bookingId, providerId }: { bookingId: number; providerId
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function submit() {
     setLoading(true);
-    await fetch("/api/reviews", {
+    setError(null);
+    const res = await fetch("/api/reviews", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ bookingId, providerId, rating, comment }),
     });
+    if (!res.ok) {
+      const data = await res.json();
+      setError(data.error ?? "Failed to submit review.");
+    }
     setLoading(false);
-    router.refresh();
+    if (res.ok) router.refresh();
   }
 
   return (
     <div className="space-y-2">
       <p className="text-sm font-medium text-gray-700">Leave a review</p>
+      {error && <p className="text-red-600 text-sm">{error}</p>}
       <div className="flex gap-1">
         {[1, 2, 3, 4, 5].map((s) => (
           <button key={s} onClick={() => setRating(s)} className={s <= rating ? "text-yellow-500 text-xl" : "text-gray-300 text-xl"}>★</button>

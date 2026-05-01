@@ -14,19 +14,37 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const validStatuses = ["accepted", "completed", "cancelled"];
   if (!validStatuses.includes(status)) {
-    return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid status. Must be accepted, completed, or cancelled." }, { status: 400 });
   }
+
+  const userId = parseInt(session.user.id);
 
   const booking = await prisma.booking.findUnique({
     where: { id: bookingId },
     include: {
       user: { select: { id: true, fullName: true } },
-      provider: { include: { user: { select: { fullName: true } } } },
+      provider: { include: { user: { select: { id: true, fullName: true } } } },
       service: true,
     },
   });
 
-  if (!booking) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!booking) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+
+  // Only the provider who owns this booking can update its status
+  if (booking.provider.user.id !== userId) {
+    return NextResponse.json({ error: "Only the service provider can update this booking's status" }, { status: 403 });
+  }
+
+  // Enforce valid status transitions
+  if (status === "accepted" && booking.status !== "pending") {
+    return NextResponse.json({ error: "Only pending bookings can be accepted" }, { status: 400 });
+  }
+  if (status === "completed" && booking.status !== "accepted") {
+    return NextResponse.json({ error: "Only accepted bookings can be marked as completed" }, { status: 400 });
+  }
+  if (status === "cancelled" && booking.status === "completed") {
+    return NextResponse.json({ error: "Completed bookings cannot be cancelled" }, { status: 400 });
+  }
 
   const updated = await prisma.booking.update({
     where: { id: bookingId },
@@ -34,14 +52,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   });
 
   const providerName = booking.provider.user.fullName;
-  const userName = booking.user.fullName;
 
   if (status === "accepted") {
     await createNotification(
       booking.user.id,
       "booking_accepted",
       "Booking Accepted",
-      `${providerName} has accepted your booking #${bookingId}. Your service is confirmed!`,
+      `${providerName} has accepted your booking. Your service is confirmed for ${new Date(booking.bookingDate).toLocaleDateString("en-GH", { timeZone: "Africa/Accra" })}.`,
       "/dashboard"
     );
   } else if (status === "completed") {
@@ -49,7 +66,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       booking.user.id,
       "booking_completed",
       "Service Completed",
-      `${providerName} has completed your service. You can now make payment and leave a review.`,
+      `${providerName} has marked your service as complete. You can now make payment and leave a review.`,
       "/dashboard"
     );
   } else if (status === "cancelled") {

@@ -9,27 +9,39 @@ export default async function AdminPage() {
 
   let data: any = {
     users: [], bookings: [], payments: [], providers: [],
-    verifications: [], feedback: [], totalRevenue: 0, categories: [],
+    verifications: [], featuredRequests: [], feedback: [],
+    totalRevenue: 0, categories: [],
   };
 
   try {
-    const [users, bookings, payments, providers, verifications, feedback, categories] = await Promise.all([
-      prisma.user.findMany({ orderBy: { createdAt: "desc" } }),
+    const [users, bookings, payments, providers, verifications, featuredRequests, feedback, categories] = await Promise.all([
+      prisma.user.findMany({
+        select: { id: true, fullName: true, email: true, phone: true, userType: true, createdAt: true },
+        orderBy: { createdAt: "desc" },
+      }),
       prisma.booking.findMany({
         include: {
           user: { select: { fullName: true } },
           provider: { include: { user: { select: { fullName: true } } } },
-          service: true,
-          payment: true,
+          service: { select: { serviceName: true, price: true } },
+          payment: { select: { id: true, paymentStatus: true, paymentMethod: true, amount: true } },
         },
         orderBy: { createdAt: "desc" },
       }),
-      prisma.payment.findMany({ orderBy: { paymentDate: "desc" } }),
+      prisma.payment.findMany({
+        select: { id: true, amount: true, paymentStatus: true, paymentMethod: true, paymentDate: true, bookingId: true },
+        orderBy: { paymentDate: "desc" },
+      }),
       prisma.serviceProvider.findMany({
-        include: { user: { select: { fullName: true, email: true } } },
+        include: { user: { select: { fullName: true, email: true, phone: true } } },
+        orderBy: { rating: "desc" },
       }),
       prisma.verificationRequest.findMany({
-        include: { provider: { include: { user: { select: { fullName: true } } } } },
+        include: { provider: { include: { user: { select: { fullName: true, email: true } } } } },
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.featuredRequest.findMany({
+        include: { provider: { include: { user: { select: { fullName: true, email: true } } } } },
         orderBy: { createdAt: "desc" },
       }),
       prisma.platformFeedback.findMany({
@@ -43,9 +55,12 @@ export default async function AdminPage() {
       .filter((p) => p.paymentStatus === "completed")
       .reduce((s, p) => s + Number(p.amount) * 0.1, 0);
 
-    data = JSON.parse(JSON.stringify({ users, bookings, payments, providers, verifications, feedback, totalRevenue, categories }));
+    data = JSON.parse(JSON.stringify({
+      users, bookings, payments, providers, verifications,
+      featuredRequests, feedback, totalRevenue, categories,
+    }));
   } catch {
-    // DB not connected
+    // DB not connected — show empty admin panel
   }
 
   return <AdminClient {...data} />;

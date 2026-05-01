@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { createNotification } from "@/lib/notifications";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -9,23 +10,36 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { bookingId, rating, comment } = body;
 
-  if (!bookingId || !rating) {
-    return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+  if (!bookingId || rating == null) {
+    return NextResponse.json({ error: "Booking ID and rating are required" }, { status: 400 });
+  }
+
+  const ratingNum = parseInt(rating);
+  if (isNaN(ratingNum) || ratingNum < 1 || ratingNum > 5) {
+    return NextResponse.json({ error: "Rating must be between 1 and 5" }, { status: 400 });
   }
 
   const userId = parseInt(session.user.id);
-  const booking = await prisma.booking.findUnique({ where: { id: parseInt(bookingId) } });
+  const booking = await prisma.booking.findUnique({
+    where: { id: parseInt(bookingId) },
+    include: { provider: { include: { user: { select: { id: true, fullName: true } } } } },
+  });
 
-  if (!booking || booking.userId !== userId) {
-    return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+  if (!booking) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+
+  if (booking.userId !== userId) {
+    return NextResponse.json({ error: "You can only review your own bookings" }, { status: 403 });
+  }
+
+  if (booking.status !== "completed") {
+    return NextResponse.json({ error: "You can only leave a review after the service is completed" }, { status: 400 });
   }
 
   const existing = await prisma.review.findFirst({
     where: { bookingId: parseInt(bookingId), userId },
   });
-
   if (existing) {
-    return NextResponse.json({ error: "Already reviewed" }, { status: 409 });
+    return NextResponse.json({ error: "You have already reviewed this booking" }, { status: 409 });
   }
 
   const review = await prisma.review.create({
@@ -33,12 +47,12 @@ export async function POST(req: NextRequest) {
       bookingId: parseInt(bookingId),
       userId,
       providerId: booking.providerId,
-      rating: parseInt(rating),
-      comment,
+      rating: ratingNum,
+      comment: comment?.trim() ?? null,
     },
   });
 
-  // Update provider avg rating
+  // Recalculate provider avg rating
   const allReviews = await prisma.review.findMany({
     where: { providerId: booking.providerId, rating: { not: null } },
     select: { rating: true },
@@ -48,6 +62,15 @@ export async function POST(req: NextRequest) {
     where: { id: booking.providerId },
     data: { rating: Math.round(avg * 100) / 100 },
   });
+
+  // Notify provider about the new review
+  await createNotification(
+    booking.provider.user.id,
+    "review",
+    "New Review Received",
+    `You received a ${ratingNum}-star review for booking #${booking.id}.${comment ? ` "${comment.trim().slice(0, 60)}"` : ""}`,
+    "/dashboard"
+  );
 
   return NextResponse.json(review, { status: 201 });
 }
