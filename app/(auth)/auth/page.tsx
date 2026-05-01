@@ -56,9 +56,9 @@ function AuthForm() {
         userType: regForm.userType,
       }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setError(data.error ?? "Registration failed.");
+      setError((data as any).error ?? "Registration failed.");
       setLoading(false);
       return;
     }

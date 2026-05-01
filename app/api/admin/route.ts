@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createNotification } from "@/lib/notifications";
+import { smileIdVerifyId, getSmileIdConfig, setSmileIdConfig, smileIdWalletTopup, smileIdLog } from "@/lib/smileid";
 import bcrypt from "bcryptjs";
 
 async function requireAdmin() {
@@ -52,9 +53,15 @@ export async function POST(req: NextRequest) {
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const body = await req.json();
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
   const { action, targetId, data } = body;
 
+  try {
   switch (action) {
     // ── Verification ──────────────────────────────────────────────────────────
     case "approve_verification": {
@@ -292,7 +299,71 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
+    // ── Smile ID / Partners ───────────────────────────────────────────────────
+    case "reverify_smileid": {
+      const vr = await prisma.verificationRequest.findUnique({
+        where: { id: parseInt(targetId) },
+        include: { provider: { include: { user: { select: { fullName: true } } } } },
+      });
+      if (!vr) return NextResponse.json({ error: "Verification request not found" }, { status: 404 });
+      const result = await smileIdVerifyId(vr.idType, vr.idNumber, vr.provider.user.fullName);
+      await prisma.verificationRequest.update({
+        where: { id: parseInt(targetId) },
+        data: {
+          smileidStatus: result.status,
+          smileidSummary: result.summary,
+          smileidReference: result.reference ?? null,
+          smileidResponse: result.response ?? null,
+          smileidCheckedAt: new Date(),
+        },
+      });
+      return NextResponse.json({ success: true, result });
+    }
+
+    case "smileid_toggle_enabled": {
+      const cfg = await getSmileIdConfig();
+      await setSmileIdConfig("enabled", cfg.enabled === "1" ? "0" : "1");
+      return NextResponse.json({ success: true });
+    }
+
+    case "smileid_set_mode": {
+      const mode = data?.mode === "live" ? "live" : "sandbox";
+      await setSmileIdConfig("mode", mode);
+      return NextResponse.json({ success: true });
+    }
+
+    case "smileid_save_credentials": {
+      await Promise.all([
+        setSmileIdConfig("partner_id", data?.partner_id ?? "", false),
+        setSmileIdConfig("api_key", data?.api_key ?? "", true),
+      ]);
+      return NextResponse.json({ success: true });
+    }
+
+    case "topup_wallet": {
+      const amount = parseFloat(data?.amount ?? "0");
+      const method = data?.paymentMethod ?? "mobile_money";
+      if (amount <= 0) return NextResponse.json({ error: "Amount must be greater than 0" }, { status: 400 });
+      const ref = `TOPUP-${Date.now().toString(16).toUpperCase()}`;
+      const newBalance = await smileIdWalletTopup(amount, method, ref, `Admin top-up via ${method}`);
+      if (newBalance === false) return NextResponse.json({ error: "Top-up failed — wallet not found" }, { status: 500 });
+      await smileIdLog("wallet_topup", "success", `Wallet topped up GHS ${amount.toFixed(2)} via ${method}`, ref, { method, new_balance: newBalance });
+      return NextResponse.json({ success: true, newBalance });
+    }
+
+    case "update_partner_notes": {
+      await prisma.partner.update({
+        where: { id: parseInt(targetId) },
+        data: { notes: data?.notes ?? null },
+      });
+      return NextResponse.json({ success: true });
+    }
+
     default:
       return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+  }
+  } catch (err: any) {
+    console.error("[admin POST]", err);
+    return NextResponse.json({ error: err?.message ?? "Internal server error" }, { status: 500 });
   }
 }

@@ -47,8 +47,10 @@ export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await req.json();
+  let body: any;
+  try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid request body" }, { status: 400 }); }
   const { providerId, serviceId, bookingDate, address, notes } = body;
+  try {
 
   if (!providerId || !serviceId || !bookingDate || !address) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -152,4 +154,7 @@ export async function POST(req: NextRequest) {
   );
 
   return NextResponse.json(JSON.parse(JSON.stringify(booking)), { status: 201 });
+  } catch (err: any) {
+    return NextResponse.json({ error: err?.message ?? "Internal server error" }, { status: 500 });
+  }
 }

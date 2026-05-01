@@ -55,7 +55,7 @@ export default function DashboardClient({
       body: JSON.stringify({ status }),
     });
     if (!res.ok) {
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       setBookingError(data.error ?? "Failed to update booking.");
     }
     setLoadingId(null);
@@ -335,7 +335,7 @@ function ProfileTab({ user }: { user: any }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fullName, email, phone }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     setLoading(false);
     setMsg(res.ok ? "Profile updated." : data.error ?? "Failed.");
     if (res.ok) router.refresh();
@@ -348,7 +348,7 @@ function ProfileTab({ user }: { user: any }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ currentPassword, newPassword }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     setPwLoading(false);
     setPwMsg(res.ok ? "Password changed." : data.error ?? "Failed.");
     if (res.ok) { setCurrentPassword(""); setNewPassword(""); }
@@ -419,7 +419,7 @@ function ServicesTab({ providerId, services: initialServices }: { providerId: nu
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ serviceName: name, description: desc, price, duration }),
     });
-    const s = await res.json();
+    const s = await res.json().catch(() => ({}));
     if (res.ok) { setServices((p) => [s, ...p]); setName(""); setDesc(""); setPrice(""); setDuration(""); setAdding(false); }
     else { setAddError(s.error ?? "Failed to add service."); }
     setLoading(false);
@@ -436,7 +436,7 @@ function ServicesTab({ providerId, services: initialServices }: { providerId: nu
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ serviceName: editName, description: editDesc, price: editPrice }),
     });
-    const s = await res.json();
+    const s = await res.json().catch(() => ({}));
     if (res.ok) { setServices((p) => p.map((x) => (x.id === id ? s : x))); setEditId(null); }
   }
 
@@ -446,7 +446,7 @@ function ServicesTab({ providerId, services: initialServices }: { providerId: nu
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ isActive: !current }),
     });
-    const s = await res.json();
+    const s = await res.json().catch(() => ({}));
     if (res.ok) setServices((p) => p.map((x) => (x.id === id ? s : x)));
   }
 
@@ -540,7 +540,7 @@ function ProviderProfileTab({ provider }: { provider: any }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ bio, serviceCategory: category, experienceYears: experience, availability, languages, avgResponse, isAvailable, dailyBookingCap: dailyCap }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     setLoading(false);
     setMsg(res.ok ? "Profile updated." : data.error ?? "Failed.");
     if (res.ok) router.refresh();
@@ -610,7 +610,7 @@ function CommissionsTab({ commissions }: { commissions: any[] }) {
       body: JSON.stringify({ commissionId: id, paymentReference: refs[id] ?? "" }),
     });
     if (!res.ok) {
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       setErrors((e) => ({ ...e, [id]: data.error ?? "Payment failed." }));
     }
     setLoading(null);
@@ -680,7 +680,7 @@ function VerificationTab({ provider }: { provider: any }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ idType, idNumber, notes }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     setLoading(false);
     setMsg(res.ok ? "Verification request submitted. We'll review within 1–2 business days." : data.error ?? "Failed.");
     if (res.ok) router.refresh();
@@ -748,7 +748,7 @@ function FeaturedTab({ provider }: { provider: any }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ durationDays: days, paymentMethod: method, paymentReference: ref }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     setLoading(false);
     setMsg(res.ok ? "Request submitted! We'll activate your featured listing after payment confirmation." : data.error ?? "Failed.");
   }
@@ -812,7 +812,7 @@ function PaymentWidget({ bookingId }: { bookingId: number }) {
       body: JSON.stringify({ bookingId, paymentMethod: method, mobileNetwork: network, mobilePhone: phone }),
     });
     if (!res.ok) {
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       setError(data.error ?? "Payment failed. Please try again.");
     }
     setLoading(false);
@@ -866,7 +866,7 @@ function ReviewWidget({ bookingId, providerId }: { bookingId: number; providerId
       body: JSON.stringify({ bookingId, providerId, rating, comment }),
     });
     if (!res.ok) {
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       setError(data.error ?? "Failed to submit review.");
     }
     setLoading(false);

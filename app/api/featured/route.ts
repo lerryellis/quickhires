@@ -14,47 +14,53 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Not a provider account" }, { status: 403 });
   }
 
-  const provider = await prisma.serviceProvider.findUnique({ where: { userId } });
-  if (!provider) return NextResponse.json({ error: "Provider profile not found" }, { status: 404 });
+  let parsedBody: any;
+  try { parsedBody = await req.json(); } catch { return NextResponse.json({ error: "Invalid request body" }, { status: 400 }); }
+  const { durationDays, paymentMethod } = parsedBody;
 
-  // Check no pending request
-  const existing = await prisma.featuredRequest.findFirst({
-    where: { providerId: provider.id, requestStatus: "pending" },
-  });
-  if (existing) {
-    return NextResponse.json({ error: "You already have a pending featured request." }, { status: 409 });
-  }
+  try {
+    const provider = await prisma.serviceProvider.findUnique({ where: { userId } });
+    if (!provider) return NextResponse.json({ error: "Provider profile not found" }, { status: 404 });
 
-  const { durationDays, paymentMethod, paymentReference } = await req.json();
+    // Check no pending request
+    const existing = await prisma.featuredRequest.findFirst({
+      where: { providerId: provider.id, requestStatus: "pending" },
+    });
+    if (existing) {
+      return NextResponse.json({ error: "You already have a pending featured request." }, { status: 409 });
+    }
 
-  // GH₵ 50/week — calculate fee by duration
-  const weeks = Math.ceil((parseInt(durationDays) || 7) / 7);
-  const feeAmount = weeks * 50;
+    // GH₵ 50/week — calculate fee by duration
+    const weeks = Math.ceil((parseInt(durationDays) || 7) / 7);
+    const feeAmount = weeks * 50;
 
-  const request = await prisma.featuredRequest.create({
-    data: {
-      providerId: provider.id,
-      durationDays: parseInt(durationDays) || 7,
-      fee: feeAmount,
-      paymentMethod: paymentMethod ?? "mobile_money",
-      requestStatus: "pending",
-      paymentStatus: "pending",
-    },
-  });
+    const request = await prisma.featuredRequest.create({
+      data: {
+        providerId: provider.id,
+        durationDays: parseInt(durationDays) || 7,
+        fee: feeAmount,
+        paymentMethod: paymentMethod ?? "mobile_money",
+        requestStatus: "pending",
+        paymentStatus: "pending",
+      },
+    });
 
-  // Notify admins
-  const admins = await prisma.user.findMany({ where: { userType: "admin" } });
-  await Promise.all(
-    admins.map((admin) =>
-      createNotification(
-        admin.id,
-        "featured",
-        "New Featured Request",
-        `Provider #${provider.id} requested a featured listing for ${durationDays ?? 7} days.`,
-        "/admin"
+    // Notify admins
+    const admins = await prisma.user.findMany({ where: { userType: "admin" } });
+    await Promise.all(
+      admins.map((admin) =>
+        createNotification(
+          admin.id,
+          "featured",
+          "New Featured Request",
+          `Provider #${provider.id} requested a featured listing for ${durationDays ?? 7} days.`,
+          "/admin"
+        )
       )
-    )
-  );
+    );
 
-  return NextResponse.json(JSON.parse(JSON.stringify(request)), { status: 201 });
+    return NextResponse.json(JSON.parse(JSON.stringify(request)), { status: 201 });
+  } catch (err: any) {
+    return NextResponse.json({ error: err?.message ?? "Internal server error" }, { status: 500 });
+  }
 }

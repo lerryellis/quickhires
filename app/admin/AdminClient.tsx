@@ -14,6 +14,8 @@ interface Props {
   feedback: any[];
   totalRevenue: number;
   categories: any[];
+  partners: any[];
+  smileidStats: any;
 }
 
 // ── shared styles ─────────────────────────────────────────────────────────────
@@ -145,12 +147,14 @@ const NAV = [
   { key: "verifications", label: "Verifications", icon: "✅" },
   { key: "feedback", label: "Feedback & Issues", icon: "💬" },
   { key: "categories", label: "Categories", icon: "📦" },
+  { key: "api_partners", label: "API Partners", icon: "🔌" },
 ];
 
 // ══════════════════════════════════════════════════════════════════════════════
 export default function AdminClient({
   users, bookings, payments, providers, verifications,
   featuredRequests: initFR, feedback, totalRevenue, categories: initCats,
+  partners = [], smileidStats = null,
 }: Props) {
   const router = useRouter();
   const [section, setSection] = useState("overview");
@@ -303,6 +307,11 @@ export default function AdminClient({
 
         {section === "categories" && (
           <CategoriesSection categories={categories} setCategories={setCategories}
+            adminAction={adminAction} loadingId={loadingId} />
+        )}
+
+        {section === "api_partners" && (
+          <APIPartnersSection partners={partners} smileidStats={smileidStats}
             adminAction={adminAction} loadingId={loadingId} />
         )}
       </main>
@@ -1377,8 +1386,8 @@ function CategoriesSection({ categories, setCategories, adminAction, loadingId }
         data: { name: newName, icon: newIcon, description: newDesc, filterKey: newKey || newName.toLowerCase().replace(/\s+/g, "_"), displayOrder: newOrder },
       }),
     });
-    const cat = await res.json();
     if (res.ok) {
+      const cat = await res.json();
       setCategories((c: any[]) => [...c, cat]);
       setAdding(false); setNewName(""); setNewIcon("🔧"); setNewDesc(""); setNewKey(""); setNewOrder("0");
     }
@@ -1525,6 +1534,267 @@ function CategoriesSection({ categories, setCategories, adminAction, loadingId }
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// API PARTNERS
+// ══════════════════════════════════════════════════════════════════════════════
+function APIPartnersSection({ partners, smileidStats, adminAction, loadingId }: any) {
+  const [topupAmount, setTopupAmount] = useState("");
+  const [topupMethod, setTopupMethod] = useState("mobile_money");
+  const [topupMsg, setTopupMsg] = useState<string | null>(null);
+  const [credPartnerId, setCredPartnerId] = useState("");
+  const [credApiKey, setCredApiKey] = useState("");
+  const [credMsg, setCredMsg] = useState<string | null>(null);
+  const [notesText, setNotesText] = useState<Record<number, string>>({});
+
+  const smilePartner = partners.find((p: any) => p.slug === "smile_id");
+  const wallet = smilePartner?.wallet;
+  const configs: Record<string, string> = {};
+  if (smilePartner?.configs) {
+    for (const c of smilePartner.configs) configs[c.configKey] = c.configValue ?? "";
+  }
+  const isEnabled = configs.enabled !== "0";
+  const isLive = configs.mode === "live";
+  const balance = wallet ? Number(wallet.balance) : 0;
+  const costPerCheck = wallet ? Number(wallet.costPerCheck) : 3.5;
+  const lowBalance = balance < costPerCheck * 10;
+
+  async function handleTopup() {
+    setTopupMsg(null);
+    const res = await adminAction("topup_wallet", smilePartner?.id ?? 0, {
+      amount: parseFloat(topupAmount),
+      paymentMethod: topupMethod,
+    });
+    if (res?.ok) {
+      setTopupMsg("Wallet topped up successfully.");
+      setTopupAmount("");
+    } else {
+      const d = await res?.json?.();
+      setTopupMsg(d?.error ?? "Top-up failed.");
+    }
+  }
+
+  async function handleSaveCreds() {
+    setCredMsg(null);
+    const res = await adminAction("smileid_save_credentials", smilePartner?.id ?? 0, {
+      partner_id: credPartnerId,
+      api_key: credApiKey,
+    });
+    if (res?.ok) { setCredMsg("Credentials saved."); setCredPartnerId(""); setCredApiKey(""); }
+    else setCredMsg("Failed to save credentials.");
+  }
+
+  const statTile = (label: string, val: any, sub?: string, accent?: string) => (
+    <div style={{ ...statCard, textAlign: "center" }}>
+      <div style={{ fontSize: "1.7rem", fontWeight: 900, color: accent ?? "var(--ember, #c45c1a)", fontFamily: "'Sora', sans-serif", letterSpacing: "-0.04em" }}>{val}</div>
+      <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--bark)", marginTop: 4 }}>{label}</div>
+      {sub && <div style={{ fontSize: "0.72rem", color: "var(--sand)", marginTop: 2 }}>{sub}</div>}
+    </div>
+  );
+
+  return (
+    <div>
+      <h1 style={pageTitle}>API Partners</h1>
+      <p style={pageSub}>Manage third-party integrations, credentials, and wallet balances.</p>
+
+      {partners.length === 0 && (
+        <div style={{ ...card, textAlign: "center", padding: 60, color: "var(--sand)" }}>No API partners configured.</div>
+      )}
+
+      {smilePartner && (
+        <>
+          {/* Header card */}
+          <div style={{ ...card, display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                <span style={{ fontSize: "1.5rem" }}>🪪</span>
+                <h2 style={{ fontFamily: "'Sora', sans-serif", fontSize: "1.1rem", fontWeight: 800, color: "var(--bark)" }}>Smile Identity</h2>
+                <span style={{ padding: "3px 9px", borderRadius: 999, fontSize: "0.7rem", fontWeight: 700, background: isEnabled ? "#dcfce7" : "#fee2e2", color: isEnabled ? "#166534" : "#991b1b" }}>{isEnabled ? "Enabled" : "Disabled"}</span>
+                <span style={{ padding: "3px 9px", borderRadius: 999, fontSize: "0.7rem", fontWeight: 700, background: isLive ? "#dbeafe" : "#fef3c7", color: isLive ? "#1e40af" : "#92400e" }}>{isLive ? "Live" : "Sandbox"}</span>
+              </div>
+              <p style={{ fontSize: "0.84rem", color: "var(--sand)" }}>Ghana ID verification — Ghana Card, Passport, Voter's ID, Driver's Licence, NHIS</p>
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <Btn variant={isEnabled ? "danger" : "success"} small
+                onClick={() => adminAction("smileid_toggle_enabled", smilePartner.id)}
+                disabled={loadingId?.startsWith("smileid_toggle")}>
+                {isEnabled ? "Disable" : "Enable"}
+              </Btn>
+              <Btn variant={isLive ? "warn" : "primary"} small
+                onClick={() => adminAction("smileid_set_mode", smilePartner.id, { mode: isLive ? "sandbox" : "live" })}
+                disabled={loadingId?.startsWith("smileid_set")}>
+                Switch to {isLive ? "Sandbox" : "Live"}
+              </Btn>
+            </div>
+          </div>
+
+          {/* Wallet + usage stats */}
+          {lowBalance && (
+            <div style={{ background: "#fff7ed", border: "1.5px solid #fed7aa", borderRadius: 10, padding: "12px 20px", marginBottom: 20, display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: "1.1rem" }}>⚠️</span>
+              <span style={{ fontSize: "0.87rem", color: "#92400e", fontWeight: 600 }}>
+                Low wallet balance — GH₵ {balance.toFixed(2)} remaining ({Math.floor(balance / costPerCheck)} check{Math.floor(balance / costPerCheck) !== 1 ? "s" : ""} left). Top up soon.
+              </span>
+            </div>
+          )}
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16, marginBottom: 24 }}>
+            {statTile("Wallet Balance", `GH₵ ${balance.toFixed(2)}`, `GH₵ ${costPerCheck.toFixed(2)} / check`, balance < costPerCheck * 5 ? "#dc2626" : "#059669")}
+            {smileidStats && (<>
+              {statTile("Today", smileidStats.today.total, `${smileidStats.today.verified}✓ ${smileidStats.today.failed}✗ ${smileidStats.today.error}⚠`)}
+              {statTile("This Week", smileidStats.week.total, `${smileidStats.week.verified}✓ ${smileidStats.week.failed}✗ ${smileidStats.week.error}⚠`)}
+              {statTile("This Month", smileidStats.month.total, `${smileidStats.month.verified}✓ ${smileidStats.month.failed}✗ ${smileidStats.month.error}⚠`)}
+              {statTile("All-Time", smileidStats.all.total, `${smileidStats.all.verified}✓ ${smileidStats.all.failed}✗ ${smileidStats.all.error}⚠`)}
+            </>)}
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 24 }}>
+            {/* Top-up wallet */}
+            <div style={card}>
+              <h3 style={sectionHeading}>Top Up Wallet</h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <input
+                  type="number" placeholder="Amount (GHS)" value={topupAmount}
+                  onChange={(e) => setTopupAmount(e.target.value)} min="1" step="0.01"
+                  style={{ padding: "9px 12px", border: "1.5px solid var(--border)", borderRadius: 7, fontSize: "0.87rem", width: "100%", boxSizing: "border-box" as const }}
+                />
+                <select value={topupMethod} onChange={(e) => setTopupMethod(e.target.value)}
+                  style={{ padding: "9px 12px", border: "1.5px solid var(--border)", borderRadius: 7, fontSize: "0.87rem", background: "#fff" }}>
+                  <option value="mobile_money">Mobile Money</option>
+                  <option value="bank_transfer">Bank Transfer</option>
+                  <option value="card">Card</option>
+                </select>
+                <Btn onClick={handleTopup} disabled={!topupAmount || parseFloat(topupAmount) <= 0}>Top Up</Btn>
+                {topupMsg && <p style={{ fontSize: "0.82rem", color: topupMsg.includes("success") ? "#166534" : "#991b1b", margin: 0 }}>{topupMsg}</p>}
+              </div>
+            </div>
+
+            {/* Credentials */}
+            <div style={card}>
+              <h3 style={sectionHeading}>Live Credentials</h3>
+              <p style={{ fontSize: "0.82rem", color: "var(--sand)", marginBottom: 14 }}>Only needed when switching to Live mode.</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <input
+                  type="text" placeholder="Partner ID" value={credPartnerId}
+                  onChange={(e) => setCredPartnerId(e.target.value)}
+                  style={{ padding: "9px 12px", border: "1.5px solid var(--border)", borderRadius: 7, fontSize: "0.87rem", width: "100%", boxSizing: "border-box" as const }}
+                />
+                <input
+                  type="password" placeholder="API Key (secret)" value={credApiKey}
+                  onChange={(e) => setCredApiKey(e.target.value)}
+                  style={{ padding: "9px 12px", border: "1.5px solid var(--border)", borderRadius: 7, fontSize: "0.87rem", width: "100%", boxSizing: "border-box" as const }}
+                />
+                <Btn onClick={handleSaveCreds} disabled={!credPartnerId && !credApiKey}>Save Credentials</Btn>
+                {credMsg && <p style={{ fontSize: "0.82rem", color: credMsg.includes("saved") ? "#166534" : "#991b1b", margin: 0 }}>{credMsg}</p>}
+              </div>
+            </div>
+          </div>
+
+          {/* Activity log */}
+          <div style={card}>
+            <h3 style={sectionHeading}>Recent Verification Activity</h3>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr>
+                    {["Time", "Action", "Status", "Summary", "Reference"].map((h) => (
+                      <th key={h} style={tblTh}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(smilePartner.activityLogs ?? []).map((log: any) => (
+                    <tr key={log.id}>
+                      <td style={tblTd}>{new Date(log.createdAt).toLocaleString("en-GH", { timeZone: "Africa/Accra", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</td>
+                      <td style={tblTd}><span style={{ fontFamily: "monospace", fontSize: "0.8rem" }}>{log.action}</span></td>
+                      <td style={tblTd}>
+                        <span style={{ padding: "3px 8px", borderRadius: 999, fontSize: "0.7rem", fontWeight: 700,
+                          background: log.status === "verified" ? "#dcfce7" : log.status === "failed" ? "#fee2e2" : log.status === "error" ? "#e0e7ff" : "#f3f4f6",
+                          color: log.status === "verified" ? "#166534" : log.status === "failed" ? "#991b1b" : log.status === "error" ? "#3730a3" : "#374151" }}>
+                          {log.status}
+                        </span>
+                      </td>
+                      <td style={{ ...tblTd, maxWidth: 280 }}>{log.summary ?? "—"}</td>
+                      <td style={{ ...tblTd, fontFamily: "monospace", fontSize: "0.78rem", color: "var(--sand)" }}>{log.reference ?? "—"}</td>
+                    </tr>
+                  ))}
+                  {(smilePartner.activityLogs ?? []).length === 0 && (
+                    <tr><td colSpan={5} style={{ ...tblTd, textAlign: "center", padding: 36, color: "var(--sand)" }}>No activity yet.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Recent transactions */}
+          <div style={card}>
+            <h3 style={sectionHeading}>Wallet Transactions</h3>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr>
+                    {["Date", "Type", "Amount (GHS)", "Balance After", "Reference"].map((h) => (
+                      <th key={h} style={tblTh}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(smilePartner.transactions ?? []).map((t: any) => (
+                    <tr key={t.id}>
+                      <td style={tblTd}>{new Date(t.createdAt).toLocaleString("en-GH", { timeZone: "Africa/Accra", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</td>
+                      <td style={tblTd}>
+                        <span style={{ padding: "3px 8px", borderRadius: 999, fontSize: "0.7rem", fontWeight: 700,
+                          background: t.type === "topup" ? "#dcfce7" : "#fee2e2",
+                          color: t.type === "topup" ? "#166534" : "#991b1b" }}>
+                          {t.type}
+                        </span>
+                      </td>
+                      <td style={{ ...tblTd, fontWeight: 700, color: t.type === "topup" ? "#059669" : "#dc2626" }}>
+                        {t.type === "topup" ? "+" : "-"}GH₵ {Number(t.amount).toFixed(2)}
+                      </td>
+                      <td style={tblTd}>GH₵ {Number(t.balanceAfter).toFixed(2)}</td>
+                      <td style={{ ...tblTd, fontFamily: "monospace", fontSize: "0.78rem", color: "var(--sand)" }}>{t.reference ?? "—"}</td>
+                    </tr>
+                  ))}
+                  {(smilePartner.transactions ?? []).length === 0 && (
+                    <tr><td colSpan={5} style={{ ...tblTd, textAlign: "center", padding: 36, color: "var(--sand)" }}>No transactions yet.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Admin notes */}
+          <div style={card}>
+            <h3 style={sectionHeading}>Admin Notes</h3>
+            <textarea
+              rows={4} placeholder="Internal notes about this integration…"
+              defaultValue={smilePartner.notes ?? ""}
+              onChange={(e) => setNotesText((p) => ({ ...p, [smilePartner.id]: e.target.value }))}
+              style={{ width: "100%", padding: "10px 14px", border: "1.5px solid var(--border)", borderRadius: 8, fontSize: "0.87rem", resize: "vertical", boxSizing: "border-box" as const }}
+            />
+            <div style={{ marginTop: 10 }}>
+              <Btn onClick={() => adminAction("update_partner_notes", smilePartner.id, { notes: notesText[smilePartner.id] ?? smilePartner.notes ?? "" })}>
+                Save Notes
+              </Btn>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Other partners (non-smile) */}
+      {partners.filter((p: any) => p.slug !== "smile_id").map((p: any) => (
+        <div key={p.id} style={card}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <h2 style={{ fontFamily: "'Sora', sans-serif", fontSize: "1rem", fontWeight: 800, color: "var(--bark)" }}>{p.name}</h2>
+            <span style={{ fontFamily: "monospace", fontSize: "0.75rem", color: "var(--sand)" }}>{p.slug}</span>
+          </div>
+          <p style={{ fontSize: "0.84rem", color: "var(--sand)" }}>{p.description ?? "No description."}</p>
+        </div>
+      ))}
     </div>
   );
 }

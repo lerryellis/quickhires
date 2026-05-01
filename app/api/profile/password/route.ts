@@ -7,7 +7,9 @@ export async function PATCH(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { currentPassword, newPassword } = await req.json();
+  let pb: any;
+  try { pb = await req.json(); } catch { return NextResponse.json({ error: "Invalid request body" }, { status: 400 }); }
+  const { currentPassword, newPassword } = pb;
 
   if (!currentPassword || !newPassword) {
     return NextResponse.json({ error: "Both fields are required" }, { status: 400 });
@@ -16,6 +18,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "New password must be at least 8 characters" }, { status: 400 });
   }
 
+  try {
   const user = await prisma.user.findUnique({ where: { id: parseInt(session.user.id) } });
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
@@ -26,4 +29,7 @@ export async function PATCH(req: NextRequest) {
   await prisma.user.update({ where: { id: user.id }, data: { password: hash } });
 
   return NextResponse.json({ success: true });
+  } catch (err: any) {
+    return NextResponse.json({ error: err?.message ?? "Internal server error" }, { status: 500 });
+  }
 }

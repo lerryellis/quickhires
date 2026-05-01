@@ -13,10 +13,13 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Not a provider account" }, { status: 403 });
   }
 
+  let pb: any;
+  try { pb = await req.json(); } catch { return NextResponse.json({ error: "Invalid request body" }, { status: 400 }); }
   const {
     bio, serviceCategory, experienceYears, availability,
     languages, avgResponse, isAvailable, dailyBookingCap,
-  } = await req.json();
+  } = pb;
+  try {
 
   const provider = await prisma.serviceProvider.findUnique({ where: { userId } });
   if (!provider) return NextResponse.json({ error: "Provider profile not found" }, { status: 404 });
@@ -36,4 +39,7 @@ export async function PATCH(req: NextRequest) {
   });
 
   return NextResponse.json(JSON.parse(JSON.stringify(updated)));
+  } catch (err: any) {
+    return NextResponse.json({ error: err?.message ?? "Internal server error" }, { status: 500 });
+  }
 }

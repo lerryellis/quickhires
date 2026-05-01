@@ -18,9 +18,12 @@ export async function PATCH(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { fullName, email, phone } = await req.json();
+  let pb: any;
+  try { pb = await req.json(); } catch { return NextResponse.json({ error: "Invalid request body" }, { status: 400 }); }
+  const { fullName, email, phone } = pb;
 
   if (!fullName?.trim()) return NextResponse.json({ error: "Full name is required" }, { status: 400 });
+  try {
 
   const existing = await prisma.user.findFirst({
     where: { email, NOT: { id: parseInt(session.user.id) } },
@@ -34,4 +37,7 @@ export async function PATCH(req: NextRequest) {
   });
 
   return NextResponse.json(user);
+  } catch (err: any) {
+    return NextResponse.json({ error: err?.message ?? "Internal server error" }, { status: 500 });
+  }
 }

@@ -8,13 +8,15 @@ export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await req.json();
+  let body: any;
+  try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid request body" }, { status: 400 }); }
   const { bookingId, paymentMethod, mobileNetwork, mobilePhone } = body;
 
   if (!bookingId || !paymentMethod) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
+  try {
   const booking = await prisma.booking.findUnique({
     where: { id: parseInt(bookingId) },
     include: {
@@ -133,4 +135,7 @@ export async function POST(req: NextRequest) {
   );
 
   return NextResponse.json(JSON.parse(JSON.stringify({ payment, basePrice, taxedAmount, commissionAmount, taxAmount, payoutAmount })));
+  } catch (err: any) {
+    return NextResponse.json({ error: err?.message ?? "Internal server error" }, { status: 500 });
+  }
 }

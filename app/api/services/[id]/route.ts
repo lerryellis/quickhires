@@ -17,8 +17,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!service) return NextResponse.json({ error: "Service not found" }, { status: 404 });
   if (service.provider.userId !== userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const { serviceName, description, price, duration, isActive } = await req.json();
-
+  let pb: any;
+  try { pb = await req.json(); } catch { return NextResponse.json({ error: "Invalid request body" }, { status: 400 }); }
+  const { serviceName, description, price, duration, isActive } = pb;
+  try {
   const updated = await prisma.service.update({
     where: { id: parseInt(id) },
     data: {
@@ -31,6 +33,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   });
 
   return NextResponse.json(JSON.parse(JSON.stringify(updated)));
+  } catch (err: any) {
+    return NextResponse.json({ error: err?.message ?? "Internal server error" }, { status: 500 });
+  }
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

@@ -25,8 +25,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "A verification request already exists for this account." }, { status: 409 });
   }
 
-  const body = await req.json();
+  let body: any;
+  try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid request body" }, { status: 400 }); }
   const { idType, idNumber, documentPath, certPath, notes } = body;
+  try {
 
   if (!idType || !idNumber) {
     return NextResponse.json({ error: "ID type and number are required" }, { status: 400 });
@@ -59,4 +61,7 @@ export async function POST(req: NextRequest) {
   );
 
   return NextResponse.json(JSON.parse(JSON.stringify(verificationRequest)), { status: 201 });
+  } catch (err: any) {
+    return NextResponse.json({ error: err?.message ?? "Internal server error" }, { status: 500 });
+  }
 }

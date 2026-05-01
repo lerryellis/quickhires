@@ -27,10 +27,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Not a provider account" }, { status: 403 });
   }
 
-  const { serviceName, description, price, duration } = await req.json();
+  let parsedBody: any;
+  try { parsedBody = await req.json(); } catch { return NextResponse.json({ error: "Invalid request body" }, { status: 400 }); }
+  const { serviceName, description, price, duration } = parsedBody;
   if (!serviceName?.trim() || !price) {
     return NextResponse.json({ error: "Service name and price are required" }, { status: 400 });
   }
+  try {
 
   const provider = await prisma.serviceProvider.findUnique({ where: { userId } });
   if (!provider) return NextResponse.json({ error: "Provider profile not found" }, { status: 404 });
@@ -47,4 +50,7 @@ export async function POST(req: NextRequest) {
   });
 
   return NextResponse.json(JSON.parse(JSON.stringify(service)), { status: 201 });
+  } catch (err: any) {
+    return NextResponse.json({ error: err?.message ?? "Internal server error" }, { status: 500 });
+  }
 }
