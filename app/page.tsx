@@ -2,6 +2,10 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 
+function initials(name: string) {
+  return name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
+}
+
 export default async function HomePage() {
   const session = await auth();
 
@@ -26,27 +30,35 @@ export default async function HomePage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      {/* Nav */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
+    <main>
+      {/* ── Nav ── */}
+      <header className="sticky top-0 z-50 bg-white"
+        style={{ borderBottom: "1px solid var(--border, #e8ddd5)" }}>
         <nav className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/" className="text-xl font-bold text-blue-600">
-            Quick<span className="text-gray-900">Hire</span>
+          <Link href="/" className="text-xl font-extrabold" style={{ color: "var(--bark, #2a1e15)" }}>
+            Quick<span style={{ color: "var(--ember, #c45c1a)" }}>Hire</span>
           </Link>
-          <div className="flex items-center gap-4">
-            <Link href="/categories" className="text-gray-600 hover:text-gray-900 text-sm">Services</Link>
+          <div className="flex items-center gap-5 text-sm">
+            <Link href="/categories" className="hover:opacity-70 transition-opacity"
+              style={{ color: "var(--warm-mid, #5a4a3d)" }}>Services</Link>
             {session ? (
               <>
                 {(session.user as any).userType === "admin" && (
-                  <Link href="/admin" className="text-sm text-gray-600 hover:text-gray-900">Admin</Link>
+                  <Link href="/admin" className="hover:opacity-70 transition-opacity"
+                    style={{ color: "var(--warm-mid, #5a4a3d)" }}>Admin</Link>
                 )}
-                <Link href="/dashboard" className="text-sm text-gray-600 hover:text-gray-900">Dashboard</Link>
-                <Link href="/api/auth/signout" className="text-sm text-gray-600 hover:text-gray-900">Logout</Link>
+                <Link href="/dashboard" className="hover:opacity-70 transition-opacity"
+                  style={{ color: "var(--warm-mid, #5a4a3d)" }}>Dashboard</Link>
+                <Link href="/api/auth/signout" className="hover:opacity-70 transition-opacity"
+                  style={{ color: "var(--warm-mid, #5a4a3d)" }}>Logout</Link>
               </>
             ) : (
               <>
-                <Link href="/auth" className="text-sm text-gray-600 hover:text-gray-900">Login</Link>
-                <Link href="/auth?tab=register" className="bg-blue-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-700">
+                <Link href="/auth" className="hover:opacity-70 transition-opacity"
+                  style={{ color: "var(--warm-mid, #5a4a3d)" }}>Login</Link>
+                <Link href="/auth?tab=register"
+                  className="px-4 py-2 rounded-lg text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+                  style={{ background: "var(--ember, #c45c1a)" }}>
                   Register
                 </Link>
               </>
@@ -55,107 +67,142 @@ export default async function HomePage() {
         </nav>
       </header>
 
-      {/* Hero */}
-      <section className="bg-white py-20 px-4">
-        <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-12 items-center">
+      {/* ── Hero ── */}
+      <section className="relative" style={{ background: "var(--bark, #2a1e15)", minHeight: 520 }}>
+        <div className="absolute inset-0"
+          style={{ background: "radial-gradient(ellipse at 70% 50%, rgba(196,92,26,0.12) 0%, transparent 60%)" }} />
+        <div className="relative max-w-6xl mx-auto px-4 py-24 grid md:grid-cols-2 gap-14 items-center">
           <div>
-            <p className="text-blue-600 text-sm font-semibold uppercase tracking-wide mb-3">
-              The service marketplace
-            </p>
-            <h1 className="text-5xl font-bold text-gray-900 leading-tight mb-4">
+            <span className="inline-flex items-center text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-6"
+              style={{ background: "rgba(196,92,26,0.15)", color: "var(--ember, #c45c1a)", border: "1px solid rgba(196,92,26,0.25)" }}>
+              The Service Marketplace
+            </span>
+            <h1 className="text-4xl md:text-5xl font-extrabold text-white leading-tight mb-5">
               Find &amp; Hire{" "}
-              <em className="text-blue-600 not-italic">Professionals</em> in Minutes
+              <em className="not-italic" style={{ color: "var(--ember, #c45c1a)" }}>Professionals</em>{" "}
+              in Minutes
             </h1>
-            <p className="text-gray-500 text-lg mb-8">
+            <p className="text-lg leading-relaxed" style={{ color: "rgba(255,255,255,0.6)" }}>
               Search for plumbers, tutors, technicians and more — trusted, vetted, ready to help.
             </p>
           </div>
-          <div className="bg-gray-50 rounded-2xl p-8 border">
-            <p className="font-semibold text-gray-700 mb-4">What do you need done?</p>
-            <form action="/categories" className="flex gap-2">
+          <div className="rounded-2xl p-8 shadow-2xl" style={{ background: "var(--card-bg, #fff)" }}>
+            <p className="font-semibold mb-5" style={{ color: "var(--bark, #2a1e15)" }}>What do you need done?</p>
+            <form action="/categories" className="space-y-3">
               <input
                 name="q"
                 placeholder="e.g. Plumber, Math Tutor, Electrician…"
-                className="flex-1 border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-orange-400"
+                style={{ border: "1.5px solid var(--border, #e8ddd5)" }}
               />
-              <button
-                type="submit"
-                className="bg-blue-600 text-white px-5 py-3 rounded-lg text-sm font-medium hover:bg-blue-700"
-              >
-                Search
+              <button type="submit"
+                className="w-full py-3 rounded-xl text-white font-semibold text-sm hover:opacity-90 transition-opacity"
+                style={{ background: "var(--ember, #c45c1a)" }}>
+                Find Professionals →
               </button>
             </form>
           </div>
         </div>
       </section>
 
-      {/* Ticker */}
-      <div className="bg-blue-600 py-3">
+      {/* ── Ticker ── */}
+      <div className="py-3" style={{ background: "var(--ember, #c45c1a)" }}>
         <div className="max-w-6xl mx-auto px-4 flex gap-6 overflow-x-auto text-white text-sm font-medium">
           <span className="whitespace-nowrap opacity-70">Popular →</span>
-          {["Plumbing","Electrical","Tutoring","Cleaning","Carpentry","Catering","Interior Design","Security","Painting"].map((s) => (
-            <span key={s} className="whitespace-nowrap">{s}</span>
+          {["Plumbing","Electrical","Tutoring","Cleaning","Carpentry","Landscaping","Painting","Security","Catering"].map((s) => (
+            <Link key={s} href={`/categories?category=${encodeURIComponent(s)}`}
+              className="whitespace-nowrap hover:opacity-80 transition-opacity">{s}</Link>
           ))}
         </div>
       </div>
 
-      {/* Categories */}
+      {/* ── Popular Services ── */}
       {categories.length > 0 && (
-        <section className="max-w-6xl mx-auto px-4 py-16">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-2xl font-bold text-gray-900">Popular Services</h2>
-            <span className="text-gray-500 text-sm">{categories.length} categories</span>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {categories.map((cat) => (
-              <Link
-                key={cat.id}
-                href={`/categories?category=${encodeURIComponent(cat.filterKey)}`}
-                className="bg-white rounded-xl p-6 border hover:border-blue-300 hover:shadow-md transition group"
-              >
-                <span className="text-3xl">{cat.icon}</span>
-                <h3 className="font-semibold text-gray-900 mt-3 group-hover:text-blue-600">{cat.name}</h3>
-                <p className="text-gray-500 text-sm mt-1">{cat.description}</p>
-              </Link>
-            ))}
+        <section className="py-16" style={{ background: "var(--cream, #fdf9f3)" }}>
+          <div className="max-w-6xl mx-auto px-4">
+            <div className="flex items-center gap-3 mb-8">
+              <h2 className="text-2xl font-bold" style={{ color: "var(--bark, #2a1e15)" }}>Popular Services</h2>
+              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full"
+                style={{ background: "rgba(196,92,26,0.1)", color: "var(--ember, #c45c1a)" }}>
+                {categories.length} categories
+              </span>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {categories.map((cat) => (
+                <div key={cat.id} className="rounded-xl p-6 flex flex-col"
+                  style={{ background: "var(--card-bg, #fff)", border: "1px solid var(--border, #e8ddd5)" }}>
+                  <span className="text-4xl mb-4">{cat.icon}</span>
+                  <h3 className="font-semibold mb-1" style={{ color: "var(--bark, #2a1e15)" }}>{cat.name}</h3>
+                  <p className="text-sm flex-1 mb-5" style={{ color: "var(--sand, #8c7b6e)" }}>{cat.description}</p>
+                  <Link href={`/categories?category=${encodeURIComponent(cat.filterKey)}`}
+                    className="block text-center text-sm font-semibold py-2.5 rounded-lg text-white hover:opacity-90 transition-opacity"
+                    style={{ background: "var(--bark, #2a1e15)" }}>
+                    View Providers
+                  </Link>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
       )}
 
-      {/* Featured providers */}
+      {/* ── Featured Providers ── */}
       {featured.length > 0 && (
-        <section className="bg-white py-16">
+        <section className="py-16" style={{ background: "var(--card-bg, #fff)" }}>
           <div className="max-w-6xl mx-auto px-4">
             <div className="flex items-center justify-between mb-8">
-              <h2 className="text-2xl font-bold text-gray-900">Featured Professionals</h2>
-              <Link href="/categories" className="text-blue-600 text-sm hover:underline">View all →</Link>
+              <div>
+                <h2 className="text-2xl font-bold" style={{ color: "var(--bark, #2a1e15)" }}>Featured Providers</h2>
+                <p className="text-sm mt-0.5" style={{ color: "var(--sand, #8c7b6e)" }}>Hand-picked</p>
+              </div>
+              <Link href="/categories" className="text-sm font-medium hover:underline"
+                style={{ color: "var(--ember, #c45c1a)" }}>View all →</Link>
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {featured.map((p) => {
-                const initials = p.user.fullName.split(" ").map((n: string) => n[0]).join("").toUpperCase();
+                const ini = initials(p.user.fullName);
                 return (
-                  <Link
-                    key={p.id}
-                    href={`/providers/${p.id}`}
-                    className="border rounded-xl p-6 hover:shadow-lg transition"
-                  >
+                  <div key={p.id} className="rounded-xl p-6 flex flex-col"
+                    style={{ border: "1px solid var(--border, #e8ddd5)" }}>
+                    {/* Featured badge row */}
+                    <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide pb-3 mb-4"
+                      style={{ borderBottom: "1px solid var(--border, #e8ddd5)", color: "var(--ember, #c45c1a)" }}>
+                      ★ Featured
+                    </div>
+                    {/* Avatar + name */}
                     <div className="flex items-center gap-3 mb-4">
-                      <div className="w-12 h-12 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-bold text-lg">
-                        {initials}
+                      <div className="w-14 h-14 rounded-xl flex items-center justify-center font-bold text-white text-lg flex-shrink-0"
+                        style={{ background: "var(--ember, #c45c1a)" }}>
+                        {ini}
                       </div>
                       <div>
-                        <p className="font-semibold text-gray-900">{p.user.fullName}</p>
-                        <p className="text-gray-500 text-sm">{p.serviceCategory}</p>
+                        <p className="font-bold" style={{ color: "var(--bark, #2a1e15)" }}>{p.user.fullName}</p>
+                        <p className="text-sm font-medium" style={{ color: "var(--ember, #c45c1a)" }}>{p.serviceCategory}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-500">
-                      <span className="text-yellow-500">★</span>
-                      <span className="font-medium text-gray-900">{Number(p.rating).toFixed(1)}</span>
-                      <span>·</span>
-                      <span>{p.experienceYears} yrs exp</span>
+                    {p.bio && (
+                      <p className="text-sm flex-1 mb-4 line-clamp-2" style={{ color: "var(--sand, #8c7b6e)" }}>{p.bio}</p>
+                    )}
+                    {/* Stats */}
+                    <div className="grid grid-cols-3 gap-2 py-3 mb-5"
+                      style={{ borderTop: "1px solid var(--border, #e8ddd5)", borderBottom: "1px solid var(--border, #e8ddd5)" }}>
+                      {[
+                        { value: Number(p.rating).toFixed(1), label: "Rating" },
+                        { value: p.totalJobs ?? 0,            label: "Jobs" },
+                        { value: `${p.experienceYears}yr`,    label: "Experience" },
+                      ].map(({ value, label }) => (
+                        <div key={label} className="text-center">
+                          <p className="font-bold text-lg leading-none" style={{ color: "var(--bark, #2a1e15)" }}>{value}</p>
+                          <p className="text-xs uppercase tracking-wide mt-1" style={{ color: "var(--sand, #8c7b6e)" }}>{label}</p>
+                        </div>
+                      ))}
                     </div>
-                    {p.bio && <p className="text-gray-500 text-sm mt-3 line-clamp-2">{p.bio}</p>}
-                  </Link>
+                    <Link href={`/providers/${p.id}`}
+                      className="block text-center py-2.5 rounded-lg text-white font-semibold text-sm hover:opacity-90 transition-opacity"
+                      style={{ background: "var(--ember, #c45c1a)" }}>
+                      Hire {p.user.fullName.split(" ")[0]}
+                    </Link>
+                  </div>
                 );
               })}
             </div>
@@ -163,31 +210,45 @@ export default async function HomePage() {
         </section>
       )}
 
-      {/* How it works */}
-      <section className="max-w-6xl mx-auto px-4 py-16">
-        <h2 className="text-2xl font-bold text-gray-900 text-center mb-12">How QuickHire Works</h2>
-        <div className="grid md:grid-cols-3 gap-8">
-          {[
-            { step: "1", title: "Search", desc: "Browse verified professionals in your area by category or service." },
-            { step: "2", title: "Book", desc: "Choose a provider, pick a date and time that works for you." },
-            { step: "3", title: "Pay", desc: "Pay securely via Mobile Money, card, or cash after service is done." },
-          ].map((item) => (
-            <div key={item.step} className="text-center">
-              <div className="w-12 h-12 bg-blue-600 text-white rounded-full flex items-center justify-center text-xl font-bold mx-auto mb-4">
-                {item.step}
+      {/* ── How it Works ── */}
+      <section className="py-20" style={{ background: "var(--bark, #2a1e15)" }}>
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="text-center mb-14">
+            <h2 className="text-3xl font-bold text-white mb-3">How QuickHire Works</h2>
+            <p style={{ color: "rgba(255,255,255,0.5)" }}>Three simple steps to get the help you need.</p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-6">
+            {[
+              { step: "1", title: "Search & Browse",  desc: "Find verified professionals by category. Compare services and pricing at a glance." },
+              { step: "2", title: "Book Instantly",    desc: "Pick your date, time, and service. Your provider is notified immediately and confirms your booking." },
+              { step: "3", title: "Pay & Review",      desc: "Pay securely via Mobile Money, card, or cash after the job is done. Leave a review to help the community." },
+            ].map((item) => (
+              <div key={item.step} className="rounded-xl p-8"
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-xl mb-5"
+                  style={{ background: "var(--ember, #c45c1a)" }}>
+                  {item.step}
+                </div>
+                <h3 className="font-bold text-white mb-2">{item.title}</h3>
+                <p className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.5)" }}>{item.desc}</p>
               </div>
-              <h3 className="font-semibold text-gray-900 mb-2">{item.title}</h3>
-              <p className="text-gray-500 text-sm">{item.desc}</p>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </section>
 
-      <footer className="bg-gray-900 text-gray-400 py-12">
+      {/* ── Footer ── */}
+      <footer className="py-12" style={{ background: "var(--bark, #2a1e15)", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
         <div className="max-w-6xl mx-auto px-4 text-center">
-          <p className="text-white font-bold text-lg mb-2">QuickHire</p>
-          <p className="text-sm">Ghana's trusted service marketplace. Find &amp; hire professionals fast.</p>
-          <p className="text-xs mt-6">© {new Date().getFullYear()} QuickHire. All rights reserved.</p>
+          <p className="font-extrabold text-lg text-white mb-2">
+            Quick<span style={{ color: "var(--ember, #c45c1a)" }}>Hire</span>
+          </p>
+          <p className="text-sm" style={{ color: "rgba(255,255,255,0.45)" }}>
+            Ghana&apos;s trusted service marketplace. Find &amp; hire professionals fast.
+          </p>
+          <p className="text-xs mt-6" style={{ color: "rgba(255,255,255,0.25)" }}>
+            © {new Date().getFullYear()} QuickHire. All rights reserved.
+          </p>
         </div>
       </footer>
     </main>
