@@ -42,7 +42,7 @@ export default async function AdminPage() {
       .filter((p) => p.paymentStatus === "completed")
       .reduce((s, p) => s + Number(p.amount) * 0.1, 0);
 
-    data = { users, bookings, payments, providers, verifications, feedback, totalRevenue };
+    data = JSON.parse(JSON.stringify({ users, bookings, payments, providers, verifications, feedback, totalRevenue }));
   } catch {
     // DB not connected
   }

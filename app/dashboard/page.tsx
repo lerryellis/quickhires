@@ -68,16 +68,19 @@ export default async function DashboardPage() {
     // DB not connected
   }
 
+  // Serialize all Decimal/Date objects before passing to Client Component
+  const serialize = (data: any) => JSON.parse(JSON.stringify(data));
+
   return (
     <DashboardClient
-      user={user}
+      user={serialize(user)}
       userType={userType}
-      provider={provider}
-      customerBookings={customerBookings}
-      providerBookings={providerBookings}
-      notifications={notifications}
+      provider={serialize(provider)}
+      customerBookings={serialize(customerBookings)}
+      providerBookings={serialize(providerBookings)}
+      notifications={serialize(notifications)}
       unreadCount={unreadCount}
-      commissions={commissions}
+      commissions={serialize(commissions)}
     />
   );
 }

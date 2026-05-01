@@ -32,6 +32,9 @@ export default async function ProviderPage({ params }: Props) {
 
   if (!provider) notFound();
 
+  // Serialize Decimal fields so they can be passed to Client Components
+  const serializedProvider = JSON.parse(JSON.stringify(provider));
+
   const initials = provider.user.fullName
     .split(" ")
     .map((n: string) => n[0])
@@ -139,7 +142,7 @@ export default async function ProviderPage({ params }: Props) {
         {/* Right: Booking form */}
         <div>
           <BookingForm
-            provider={provider}
+            provider={serializedProvider}
             session={session ? { userId: session.user.id, userType: (session.user as any).userType } : null}
           />
         </div>
