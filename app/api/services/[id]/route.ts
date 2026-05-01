@@ -21,18 +21,30 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   try { pb = await req.json(); } catch { return NextResponse.json({ error: "Invalid request body" }, { status: 400 }); }
   const { serviceName, description, price, duration, isActive } = pb;
   try {
-  const updated = await prisma.service.update({
-    where: { id: parseInt(id) },
-    data: {
-      serviceName: serviceName?.trim() ?? service.serviceName,
-      description: description ?? service.description,
-      price: price != null ? parseFloat(price) : service.price,
-      duration: duration != null ? parseInt(duration) : service.duration,
-      isActive: isActive != null ? Boolean(isActive) : service.isActive,
-    },
-  });
+  const newName    = serviceName?.trim()                          ?? service.serviceName;
+  const newDesc    = description !== undefined ? description       : service.description;
+  const newPrice   = price    != null ? parseFloat(price)          : Number(service.price);
+  const newDur     = duration != null ? parseInt(duration)         : (service as any).duration;
+  const newActive  = isActive != null ? Boolean(isActive)          : service.isActive;
+  const sid        = parseInt(id);
 
-  return NextResponse.json(JSON.parse(JSON.stringify(updated)));
+  // Use raw SQL to bypass stale compiled-client validation on the duration column
+  await prisma.$executeRaw`
+    UPDATE services
+    SET service_name = ${newName},
+        description  = ${newDesc},
+        price        = ${newPrice},
+        duration     = ${newDur},
+        is_active    = ${newActive}
+    WHERE service_id = ${sid}
+  `;
+
+  const rows = await prisma.$queryRaw<any[]>`
+    SELECT service_id AS id, provider_id AS providerId, service_name AS serviceName,
+           description, price, duration, is_active AS isActive, created_at AS createdAt
+    FROM services WHERE service_id = ${sid} LIMIT 1
+  `;
+  return NextResponse.json(JSON.parse(JSON.stringify(rows[0])));
   } catch (err: any) {
     return NextResponse.json({ error: err?.message ?? "Internal server error" }, { status: 500 });
   }

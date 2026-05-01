@@ -38,18 +38,26 @@ export async function POST(req: NextRequest) {
   const provider = await prisma.serviceProvider.findUnique({ where: { userId } });
   if (!provider) return NextResponse.json({ error: "Provider profile not found" }, { status: 404 });
 
-  const service = await prisma.service.create({
-    data: {
-      providerId: provider.id,
-      serviceName: serviceName.trim(),
-      description,
-      price: parseFloat(price),
-      duration: duration ? parseInt(duration) : null,
-      isActive: true,
-    },
-  });
+  // Use raw SQL to avoid stale-compiled-client issues with the duration column
+  const dur = duration ? parseInt(duration) : null;
+  const priceVal = parseFloat(price);
+  const desc = description ?? null;
 
-  return NextResponse.json(JSON.parse(JSON.stringify(service)), { status: 201 });
+  await prisma.$executeRaw`
+    INSERT INTO services (provider_id, service_name, description, price, duration, is_active)
+    VALUES (${provider.id}, ${serviceName.trim()}, ${desc}, ${priceVal}, ${dur}, true)
+  `;
+
+  const service = await prisma.$queryRaw<any[]>`
+    SELECT service_id AS id, provider_id AS providerId, service_name AS serviceName,
+           description, price, duration, is_active AS isActive, created_at AS createdAt
+    FROM services
+    WHERE provider_id = ${provider.id}
+    ORDER BY service_id DESC
+    LIMIT 1
+  `;
+
+  return NextResponse.json(JSON.parse(JSON.stringify(service[0])), { status: 201 });
   } catch (err: any) {
     return NextResponse.json({ error: err?.message ?? "Internal server error" }, { status: 500 });
   }

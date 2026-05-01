@@ -1,8 +1,87 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+
+// ── Emoji picker for category icons ──────────────────────────────────────────
+const SERVICE_EMOJIS = [
+  "🔧","⚡","📚","🧹","🔨","🌿","🎨","🔒","🍽️","🚗",
+  "💄","🏥","📱","🐕","👶","🎵","📸","🏋️","🌺","🏠",
+  "❄️","🛋️","🔐","🧰","🚿","📦","🎓","💊","👔","📊",
+  "⚖️","🖥️","🐾","🌱","🛡️","🎭","🏊","🌍","🔑","🪚",
+  "🧑‍🍳","🍕","🧴","🪴","🚜","🛻","🏗️","🪟","🧱","🛁",
+  "🎪","🎬","🐄","🧺","🪣","🧼","🪒","🧲","🔩","🔌",
+];
+
+function EmojiPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function close(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        title="Pick an icon"
+        style={{
+          width: 52, height: 40, border: "1.5px solid var(--border)", borderRadius: 7,
+          fontSize: "1.4rem", textAlign: "center", background: "#fff",
+          cursor: "pointer", lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center",
+        }}
+      >
+        {value || "🔧"}
+      </button>
+      {open && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 100,
+          background: "#fff", border: "1px solid var(--border)", borderRadius: 12,
+          boxShadow: "0 8px 32px rgba(42,30,21,0.15)",
+          padding: 10, width: 260,
+          display: "grid", gridTemplateColumns: "repeat(10, 1fr)", gap: 4,
+        }}>
+          {SERVICE_EMOJIS.map((e) => (
+            <button
+              key={e}
+              type="button"
+              onClick={() => { onChange(e); setOpen(false); }}
+              title={e}
+              style={{
+                fontSize: "1.3rem", lineHeight: 1, padding: "5px 2px", border: "none",
+                borderRadius: 6, cursor: "pointer", textAlign: "center",
+                background: e === value ? "var(--parchment, #f5ede4)" : "transparent",
+                outline: e === value ? "2px solid var(--ember, #c45c1a)" : "none",
+              }}
+            >
+              {e}
+            </button>
+          ))}
+          {/* Also allow manual input for unlisted emoji */}
+          <input
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="✏️"
+            maxLength={4}
+            style={{
+              gridColumn: "span 10", marginTop: 6,
+              padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: 7,
+              fontSize: "0.82rem", color: "var(--bark)", background: "#fff", outline: "none",
+              textAlign: "center",
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface Props {
   users: any[];
@@ -1429,8 +1508,7 @@ function CategoriesSection({ categories, setCategories, adminAction, loadingId }
         {adding && (
           <>
             <div style={{ display: "grid", gridTemplateColumns: "60px 1fr 1fr 1fr 70px", gap: 10, marginBottom: 14 }}>
-              <input value={newIcon} onChange={(e) => setNewIcon(e.target.value)} placeholder="🔧"
-                style={{ padding: "9px 8px", border: "1.5px solid var(--border)", borderRadius: 7, fontSize: "1.3rem", textAlign: "center" as const, background: "#fff", color: "var(--bark)", outline: "none" }} />
+              <EmojiPicker value={newIcon} onChange={setNewIcon} />
               <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Name *"
                 style={{ padding: "9px 12px", border: "1.5px solid var(--border)", borderRadius: 7, fontSize: "0.87rem", background: "#fff", color: "var(--bark)", outline: "none" }} />
               <input value={newDesc} onChange={(e) => setNewDesc(e.target.value)} placeholder="Short description"
@@ -1491,17 +1569,20 @@ function CategoriesSection({ categories, setCategories, adminAction, loadingId }
                   <tr key={`edit-${c.id}`}>
                     <td colSpan={7} style={{ background: "var(--parchment, #f5ede4)", padding: "14px" }}>
                       <div style={{ display: "grid", gridTemplateColumns: "60px 1fr 1fr 1fr 80px", gap: 10, marginBottom: 10 }}>
+                        <EmojiPicker
+                          value={editData[c.id].icon}
+                          onChange={(v) => setEditData((d) => ({ ...d, [c.id]: { ...d[c.id], icon: v } }))}
+                        />
                         {[
-                          { key: "icon", style: { fontSize: "1.3rem", textAlign: "center" as const, width: 60 } },
                           { key: "name", placeholder: "Name" },
                           { key: "description", placeholder: "Description" },
                           { key: "filterKey", placeholder: "Filter key" },
-                          { key: "displayOrder", placeholder: "Order", type: "number", width: 80 },
+                          { key: "displayOrder", placeholder: "Order", type: "number" },
                         ].map(({ key, ...rest }) => (
                           <input key={key} value={editData[c.id][key]} placeholder={(rest as any).placeholder}
                             type={(rest as any).type ?? "text"}
                             onChange={(e) => setEditData((d) => ({ ...d, [c.id]: { ...d[c.id], [key]: e.target.value } }))}
-                            style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: "0.87rem", background: "#fff", color: "var(--bark)", outline: "none", ...(rest as any).style }} />
+                            style={{ padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: 6, fontSize: "0.87rem", background: "#fff", color: "var(--bark)", outline: "none" }} />
                         ))}
                       </div>
                       <div style={{ display: "flex", gap: 8 }}>
